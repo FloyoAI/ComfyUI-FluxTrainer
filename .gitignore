@@ -7,3 +7,9 @@ build
 .vscode
 wandb
 output*
+
+# Isolated Anima backend, generated runs and test artifacts
+.anima/
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -1,5 +1,9 @@
 # ComfyUI Flux Trainer
 
+## Anima support for Floyo
+
+This branch adds Anima LoRA training and full DiT fine-tuning with a pinned, isolated sd-scripts backend. The first Anima validation or training request automatically installs the backend with ComfyUI's Python; setup needs Git and network access. See [installation, example workflows, validation and deployment notes](docs/anima.md). The examples default to validation, which does not load model weights or run training.
+
 Wrapper for slightly modified kohya's training scripts: https://github.com/kohya-ss/sd-scripts
 
 Including code from: https://github.com/KohakuBlueleaf/Lycoris
@@ -51,4 +55,3 @@ Currently supports LoRA training, and untested full finetune with code from kohy
 Experimental support for LyCORIS training has been added as well, using code from: https://github.com/KohakuBlueleaf/Lycoris
 
 ![Screenshot 2024-08-21 020207](https://github.com/user-attachments/assets/1686b180-90c8-41d0-8c96-63e76ebc2475)
-

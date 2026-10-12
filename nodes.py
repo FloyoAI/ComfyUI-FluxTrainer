@@ -195,33 +195,27 @@ class TrainDatasetAdd:
         if regularization is not None:
             new_dataset["subsets"].append(regularization)
 
-        # Generate a signature for the new dataset
         new_dataset_signature = self.generate_signature(new_dataset)
 
-        # Load the existing datasets
         existing_datasets = json.loads(dataset_config["datasets"])
 
-        # Remove the previously added dataset if it exists
+        # Replace this node's previous dataset when the workflow runs again.
         if self.previous_dataset_signature:
             existing_datasets["datasets"] = [
                 ds for ds in existing_datasets["datasets"]
                 if self.generate_signature(ds) != self.previous_dataset_signature
             ]
 
-        # Add the new dataset
         existing_datasets["datasets"].append(new_dataset)
 
-        # Store the new dataset signature for future runs
         self.previous_dataset_signature = new_dataset_signature
 
-        # Convert back to JSON and update dataset_config
         updated_dataset_json = json.dumps(existing_datasets, indent=2)
         dataset_config["datasets"] = updated_dataset_json
 
         return dataset_config,
 
     def generate_signature(self, dataset):
-        # Create a unique signature for the dataset based on its attributes
         return json.dumps(dataset, sort_keys=True)
 
 class OptimizerConfig:
@@ -1167,16 +1161,13 @@ class FluxTrainBlockSelect:
     def block_select(self, include):
         import re
     
-        # Split the input string by commas to handle multiple ranges/blocks
         elements = include.split(',')
     
-        # Initialize a list to collect block names
         blocks = []
     
         # Pattern to find ranges like (10-20)
         pattern = re.compile(r'\((\d+)-(\d+)\)')
     
-        # Extract the prefix and suffix from the first element
         prefix_suffix_pattern = re.compile(r'(.*)_blocks_(.*)')
     
         for element in elements:
@@ -1188,15 +1179,12 @@ class FluxTrainBlockSelect:
                 matches = pattern.findall(suffix)
                 if matches:
                     for start, end in matches:
-                        # Generate block names for the range and add them to the list
                         blocks.extend([f"{prefix}{i}{suffix.replace(f'({start}-{end})', '', 1)}" for i in range(int(start), int(end) + 1)])
                 else:
-                    # If no range is found, add the block name directly
                     blocks.append(element)
             else:
                 blocks.append(element)
     
-        # Construct the `include` string
         include_string = ','.join(blocks)
     
         block_args = {
@@ -1290,7 +1278,6 @@ class VisualizeLoss:
         import numpy as np
         loss_values = network_trainer["network_trainer"].loss_recorder.global_loss_list
 
-        # Apply moving average
         def moving_average(values, window_size):
             return np.convolve(values, np.ones(window_size) / window_size, mode='valid')
         if window_size > 0:
@@ -1302,7 +1289,6 @@ class VisualizeLoss:
         width_inches = width / 100
         height_inches = height / 100
 
-        # Create a plot
         fig, ax = plt.subplots(figsize=(width_inches, height_inches))
         ax.plot(loss_values, label='Training Loss')
         ax.set_xlabel('Step')

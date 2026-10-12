@@ -1,0 +1,72 @@
+{
+  "1": {
+    "class_type": "AnimaModelSelect",
+    "inputs": {
+      "transformer": "anima-base-v1.0.safetensors",
+      "qwen3": "qwen_3_06b_base.safetensors",
+      "vae": "qwen_image_vae.safetensors"
+    }
+  },
+  "2": {
+    "class_type": "AnimaDatasetConfig",
+    "inputs": {
+      "image_dir": "/path/to/images",
+      "resolution": 1024,
+      "batch_size": 1,
+      "num_repeats": 1,
+      "caption_extension": ".txt",
+      "class_tokens": ""
+    }
+  },
+  "3": {
+    "class_type": "InitAnimaTraining",
+    "inputs": {
+      "anima_models": [
+        "1",
+        0
+      ],
+      "dataset": [
+        "2",
+        0
+      ],
+      "training_type": "full",
+      "output_name": "anima_full",
+      "learning_rate": 1e-06,
+      "max_train_steps": 1500,
+      "network_dim": 16,
+      "network_alpha": 16.0,
+      "optimizer_type": "AdamW",
+      "mixed_precision": "bf16",
+      "save_precision": "bf16",
+      "cache_latents": "disk",
+      "cache_text_encoder_outputs": "disk",
+      "gradient_checkpointing": true,
+      "blocks_to_swap": 0,
+      "save_every_n_steps": 250,
+      "seed": 42,
+      "gradient_accumulation_steps": 1,
+      "timestep_sampling": "sigmoid",
+      "discrete_flow_shift": 1.0,
+      "attention_mode": "torch",
+      "checkpoint_offload": "disabled",
+      "save_state": false,
+      "resume": "",
+      "network_weights": "",
+      "sample_prompts": "",
+      "sample_every_n_steps": 0,
+      "t5_tokenizer_path": ""
+    }
+  },
+  "4": {
+    "class_type": "AnimaTrain",
+    "inputs": {
+      "config": [
+        "3",
+        0
+      ],
+      "action": "validate",
+      "output_dir": "anima",
+      "copy_to_model_folder": false
+    }
+  }
+}

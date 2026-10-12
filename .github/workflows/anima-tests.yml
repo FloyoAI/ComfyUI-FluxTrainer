@@ -1,0 +1,25 @@
+name: Anima checks (no training)
+on:
+  push:
+    paths: ['anima/**', 'nodes_anima.py', 'install.py', 'tests/**', 'tools/**', 'example_workflows/anima*', '.github/workflows/anima-tests.yml']
+  pull_request:
+  workflow_dispatch:
+jobs:
+  cpu-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/checkout@v4
+        with:
+          repository: kohya-ss/sd-scripts
+          ref: 690ea7f96c23182352ec63def76d431c6120bd2f
+          path: upstream-sd-scripts
+      - name: Unit tests and real upstream argparse contracts
+        env:
+          ANIMA_CONTRACT_SOURCE: ${{ github.workspace }}/upstream-sd-scripts
+        run: python -m unittest discover -s tests -v
+      - name: Syntax checks
+        run: python -m compileall -q anima nodes_anima.py install.py tools tests
