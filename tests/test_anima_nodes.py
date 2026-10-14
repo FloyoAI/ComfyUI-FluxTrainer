@@ -63,6 +63,47 @@ class NodeTests(Fixture):
             selected = NODES.AnimaModelSelect().select("transformer", "qwen3", "vae")[0]
         self.assertEqual(selected, self.models)
 
+    def test_output_dir_strips_floyo_outputs_prefix(self):
+        base = self.root / "comfy-output"
+        cases = {
+            "#outputs/Anima": base / "Anima",
+            "output/Anima": base / "Anima",
+            "(as-input)#outputs/Anima": base / "Anima",
+            "#outputs": base,
+            "output": base,
+            "#outputs/anima": base / "anima",
+            "anima": base / "anima",
+            "/abs/Anima": Path("/abs/Anima"),
+        }
+        with patch.object(FOLDER_PATHS, "get_output_directory", create=True, return_value=str(base)):
+            for raw, expected in cases.items():
+                with self.subTest(raw=raw):
+                    self.assertEqual(NODES.resolve_output_root(raw), expected)
+
+    def test_training_reports_checkpoints_under_outputs(self):
+        run_dir = self.root / "Anima" / "anima_lora-run"
+        run_dir.mkdir(parents=True)
+        (run_dir / "anima_lora.safetensors").write_bytes(b"lora")
+        (run_dir / "anima_lora-step00001500.safetensors").write_bytes(b"step")
+        result = {"model_path": str(run_dir / "anima_lora.safetensors"), "action": "train"}
+        mm = types.ModuleType("comfy.model_management")
+        mm.unload_all_models = Mock()
+        mm.soft_empty_cache = Mock()
+        mm.throw_exception_if_processing_interrupted = Mock()
+        utils = types.ModuleType("comfy.utils")
+        utils.ProgressBar = Mock()
+        comfy = types.ModuleType("comfy")
+        comfy.model_management, comfy.utils = mm, utils
+        with patch.dict(sys.modules, {"comfy": comfy, "comfy.model_management": mm, "comfy.utils": utils}), \
+             patch.object(FOLDER_PATHS, "get_output_directory", create=True, return_value=str(self.root)), \
+             patch.object(NODES, "execute", return_value=(result, run_dir)) as execute:
+            output = NODES.AnimaTrain().run(self.config(), action="train", output_dir="#outputs/Anima", unique_id="test-node-5")
+        self.assertEqual(execute.call_args.args[1], self.root / "Anima")
+        self.assertEqual(output["ui"]["files"], [
+            {"filename": "anima_lora-step00001500.safetensors", "subfolder": "Anima/anima_lora-run", "type": "output"},
+            {"filename": "anima_lora.safetensors", "subfolder": "Anima/anima_lora-run", "type": "output"},
+        ])
+
     def test_validate_node_returns_ui_report_and_does_not_unload_models(self):
         mm = types.ModuleType("comfy.model_management")
         mm.unload_all_models = Mock(side_effect=AssertionError("validation must not unload models"))

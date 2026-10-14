@@ -32,6 +32,68 @@ def model_path(name, *categories):
     raise ValueError(f"Model not found in {', '.join(categories)}: {name}")
 
 
+def strip_floyo_output_prefix(path):
+    """Drop a Floyo ``#outputs`` prefix, including the dispatcher's ``output/`` rewrite."""
+    relative = str(path).replace("\\", "/").strip().strip("/")
+    for prefix in ("(as-input)#outputs", "#outputs", "output"):
+        if relative == prefix:
+            return ""
+        lead = prefix + "/"
+        if relative.startswith(lead):
+            return relative[len(lead):]
+    return relative
+
+
+def resolve_output_root(output_dir):
+    """Resolve a Floyo ``#outputs`` path onto ComfyUI's output directory.
+
+    The dispatcher rewrites ``#outputs/Anima`` to ``output/Anima`` before the node
+    runs. Joining that onto the output directory again saves under
+    ``output/output/Anima``.
+    """
+    root = Path(output_dir).expanduser()
+    if root.is_absolute():
+        return root
+    relative = strip_floyo_output_prefix(output_dir)
+    base = Path(folder_paths.get_output_directory())
+    return base / relative if relative else base
+
+
+def floyo_output_dir(directory):
+    """Floyo path for a directory inside the Comfy output folder."""
+    base = Path(folder_paths.get_output_directory()).resolve()
+    target = Path(directory).resolve()
+    try:
+        relative = target.relative_to(base)
+    except ValueError:
+        return None
+    if relative == Path("."):
+        return "#outputs"
+    return "#outputs/" + relative.as_posix()
+
+
+def floyo_output_files(directory):
+    """Checkpoint records Floyo uploads from an executed node.
+
+    ``type`` is ``output`` because that is the Comfy folder Floyo maps to
+    ``#outputs``. Without these records the local files are deleted at the end
+    of the run and never show up in Floyo.
+    """
+    if floyo_output_dir(directory) is None:
+        return []
+    base = Path(folder_paths.get_output_directory()).resolve()
+    files = []
+    for checkpoint in sorted(Path(directory).glob("*.safetensors")):
+        relative = checkpoint.resolve().relative_to(base)
+        parent = relative.parent.as_posix()
+        files.append({
+            "filename": checkpoint.name,
+            "subfolder": "" if parent == "." else parent,
+            "type": "output",
+        })
+    return files
+
+
 class AnimaModelSelect:
     @classmethod
     def INPUT_TYPES(cls):
@@ -133,7 +195,7 @@ class AnimaTrain:
         return {"required": {
             "config": ("ANIMA_CONFIG",),
             "action": (["validate", "train"], {"default": "validate", "tooltip": "Validate checks configuration and backend dependencies without loading weights or running training."}),
-            "output_dir": ("STRING", {"default": "anima", "tooltip": "Relative paths are inside ComfyUI output. Each invocation creates its own run folder."}),
+            "output_dir": ("STRING", {"default": "#outputs/anima", "tooltip": "Directory under #outputs, Floyo's output folder. Example: #outputs/anima. Each invocation creates its own run folder. Absolute paths are used as given."}),
             "copy_to_model_folder": ("BOOLEAN", {"default": False}),
         }, "hidden": {"extra_pnginfo": "EXTRA_PNGINFO", "unique_id": "UNIQUE_ID"}}
 
@@ -148,13 +210,11 @@ class AnimaTrain:
         # Training and file validation are side effects; never reuse a cached result.
         return float("nan")
 
-    def run(self, config, action="validate", output_dir="anima", copy_to_model_folder=False, extra_pnginfo=None, unique_id=None):
+    def run(self, config, action="validate", output_dir="#outputs/anima", copy_to_model_folder=False, extra_pnginfo=None, unique_id=None):
         import comfy.model_management as mm
         import comfy.utils
 
-        root = Path(output_dir).expanduser()
-        if not root.is_absolute():
-            root = Path(folder_paths.get_output_directory()) / root
+        root = resolve_output_root(output_dir)
         pbar = comfy.utils.ProgressBar(config["args"]["max_train_steps"], node_id=unique_id)
 
         def on_line(line):
@@ -180,7 +240,14 @@ class AnimaTrain:
             path = str(destination / Path(path).name)
             shutil.copy2(result["model_path"], path)
         report = json.dumps({**result, "model_path": path, "run_directory": str(run_dir)}, indent=2)
-        return {"ui": {"text": [report]}, "result": (path, str(run_dir), report)}
+        ui = {"text": [report]}
+        files = floyo_output_files(run_dir)
+        if files:
+            ui["files"] = files
+            floyo_dir = floyo_output_dir(run_dir)
+            if floyo_dir:
+                log.info("[Anima] Saved training outputs to %s", floyo_dir)
+        return {"ui": ui, "result": (path, str(run_dir), report)}
 
 
 NODE_CLASS_MAPPINGS = {cls.__name__: cls for cls in (
